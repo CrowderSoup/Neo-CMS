@@ -74,7 +74,7 @@ None. Neo CMS is a static site, so configuration lives in `index.html` and
 
 ## Project links
 
-- Live site: <https://crowdersoup.neocities.org/>
+- Live site: <https://neo-cms.neocities.org/>
 
 ## License
 
