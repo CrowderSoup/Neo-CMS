@@ -7,13 +7,15 @@ on:
 
 jobs:
   deploy:
-    if: ${{ secrets.NEOCITIES_API_KEY != '' }}
     runs-on: ubuntu-latest
+    env:
+      NEOCITIES_API_KEY: ${{ secrets.NEOCITIES_API_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Package site
+        if: ${{ env.NEOCITIES_API_KEY != '' }}
         run: |
           set -euo pipefail
           rm -f site.zip
@@ -23,8 +25,7 @@ jobs:
             -x "**/.DS_Store"
 
       - name: Upload to Neocities
-        env:
-          NEOCITIES_API_KEY: ${{ secrets.NEOCITIES_API_KEY }}
+        if: ${{ env.NEOCITIES_API_KEY != '' }}
         run: |
           set -euo pipefail
           curl -fS \
