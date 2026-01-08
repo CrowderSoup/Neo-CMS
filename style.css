@@ -69,20 +69,6 @@ body {
   line-height: 1.5;
 }
 
-.pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  background: #fff5dd;
-  color: #7c390f;
-  border: 1px solid #f0d8a4;
-  border-radius: 999px;
-  padding: 8px 14px;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 1.4px;
-}
-
 nav {
   margin-top: 24px;
   display: flex;
