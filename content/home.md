@@ -13,6 +13,8 @@ Welcome to [Neo CMS](https://github.com/CrowderSoup/Neo-CMS) your tiny flat-file
 - Markdown rendering with headings, lists, links, code, and blockquotes.
 - Hash-based routing so every page is a shareable URL.
 - No build step, no dependencies, no database.
+- IndieAuth rel=me links so you can sign into other sites.
+- Webmentions displayed as comments and reactions.
 
 > This is intentionally small. Modify the HTML, tweak the CSS, and make it your own.
 

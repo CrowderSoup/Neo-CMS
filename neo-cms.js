@@ -7,11 +7,25 @@ const pageStatus = document.getElementById("page-status");
 const siteTitle = document.getElementById("site-title");
 const siteTagline = document.getElementById("site-tagline");
 const siteFooter = document.getElementById("site-footer");
+const webmentions = document.getElementById("webmentions");
 
 let manifest = null;
 
+const indieweb = {
+  siteUrl: "",
+  webmentionEndpoint: "",
+};
+
+const readHeadLink = (rel) => {
+  const link = document.querySelector(`link[rel="${rel}"]`);
+  return link?.getAttribute("href") || "";
+};
+
 const escapeHtml = (input) =>
-  input.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  String(input ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 
 const slugify = (text) =>
   text
@@ -146,6 +160,154 @@ const setStatus = (text) => {
   pageStatus.textContent = text;
 };
 
+const formatMentionDate = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+};
+
+const getPageUrl = (page, slug) => {
+  if (page?.url) return page.url;
+  const origin = window.location.origin;
+  const fallbackBase =
+    origin === "null" ? "" : `${origin}${window.location.pathname}`;
+  const base = indieweb.siteUrl || fallbackBase;
+  if (!base) return "";
+  const baseUrl = base.replace(/#.*$/, "");
+  return `${baseUrl}#${slug}`;
+};
+
+const getMentionType = (mention) => {
+  const property = mention["wm-property"];
+  const map = {
+    "like-of": "Like",
+    "repost-of": "Repost",
+    "bookmark-of": "Bookmark",
+    "in-reply-to": "Reply",
+    "mention-of": "Mention",
+  };
+  return map[property] || "Mention";
+};
+
+const getMentionBody = (mention) => {
+  const property = mention["wm-property"];
+  const actionMap = {
+    "like-of": "liked this.",
+    "repost-of": "reposted this.",
+    "bookmark-of": "bookmarked this.",
+    "in-reply-to": "replied:",
+    "mention-of": "mentioned this.",
+  };
+  return (
+    mention.content?.text || mention.content?.html || actionMap[property] || ""
+  );
+};
+
+const renderWebmentions = (mentions, targetUrl) => {
+  if (!webmentions) return;
+  if (!indieweb.webmentionEndpoint) {
+    webmentions.innerHTML = `
+      <h2>Webmentions</h2>
+      <p class="webmentions-summary">
+        Webmentions are disabled until you set a webmention endpoint.
+      </p>
+    `;
+    return;
+  }
+  const count = mentions.length;
+  if (!count) {
+    webmentions.innerHTML = `
+      <h2>Webmentions</h2>
+      <p class="webmentions-summary">
+        No webmentions yet. When another site links to ${escapeHtml(
+          targetUrl,
+        )}, it will show up here.
+      </p>
+    `;
+    return;
+  }
+  const items = mentions
+    .map((mention) => {
+      const author = mention.author || {};
+      const authorName =
+        author.name || author.url || mention.url || "Anonymous";
+      const authorUrl = author.url || mention.url || "#";
+      const body = getMentionBody(mention);
+      const date =
+        formatMentionDate(mention.published) ||
+        formatMentionDate(mention["wm-received"]);
+      return `
+        <li class="webmention-item">
+          <div class="webmention-meta">${getMentionType(mention)}${
+            date ? ` · ${date}` : ""
+          }</div>
+          <div class="webmention-body">
+            <a href="${escapeHtml(authorUrl)}" target="_blank" rel="noopener">
+              ${escapeHtml(authorName)}
+            </a>
+            ${body ? ` - ${escapeHtml(body)}` : ""}
+          </div>
+        </li>
+      `;
+    })
+    .join("");
+  webmentions.innerHTML = `
+    <h2>Webmentions</h2>
+    <p class="webmentions-summary">
+      ${count} mention${count === 1 ? "" : "s"} for ${escapeHtml(targetUrl)}.
+    </p>
+    <ul class="webmention-list">${items}</ul>
+  `;
+};
+
+const loadWebmentions = async (page, slug) => {
+  if (!webmentions) return;
+  const targetUrl = getPageUrl(page, slug);
+  if (!targetUrl) {
+    webmentions.innerHTML = `
+      <h2>Webmentions</h2>
+      <p class="webmentions-summary">
+        Webmentions are unavailable on local previews.
+      </p>
+    `;
+    return;
+  }
+  if (!indieweb.webmentionEndpoint) {
+    renderWebmentions([], targetUrl);
+    return;
+  }
+  webmentions.innerHTML = `
+    <h2>Webmentions</h2>
+    <p class="webmentions-summary">Loading webmentions...</p>
+  `;
+  try {
+    const apiUrl = `https://webmention.io/api/mentions.jf2?target=${encodeURIComponent(
+      targetUrl,
+    )}`;
+    const response = await fetch(apiUrl, { cache: "no-store" });
+    if (!response.ok) throw new Error("Webmention request failed");
+    const data = await response.json();
+    const mentions = (data.children || []).slice().sort((a, b) => {
+      const dateA = new Date(a.published || a["wm-received"] || 0);
+      const dateB = new Date(b.published || b["wm-received"] || 0);
+      return dateB - dateA;
+    });
+    renderWebmentions(mentions, targetUrl);
+  } catch (error) {
+    webmentions.innerHTML = `
+      <h2>Webmentions</h2>
+      <p class="webmentions-summary">
+        Could not load webmentions for this page.
+      </p>
+    `;
+  }
+};
+
 const renderNav = () => {
   nav.innerHTML = "";
   manifest.sections.forEach((section) => {
@@ -205,9 +367,13 @@ const loadPage = async () => {
     renderEmpty(
       "Add the page back into <code>content/index.json</code> or pick another link.",
     );
+    if (webmentions) {
+      webmentions.innerHTML = "";
+    }
     return;
   }
 
+  currentPage = page;
   pageTitle.textContent = page.title || "Untitled";
   pageSubtitle.textContent = page.description || "";
   setStatus("Loading");
@@ -227,6 +393,7 @@ const loadPage = async () => {
       pageTitle.textContent = headingMatch[1].trim();
     }
     setStatus("Loaded");
+    loadWebmentions(page, slug);
   } catch (error) {
     pageTitle.textContent = "Missing file";
     pageSubtitle.textContent = `Could not load content/${page.file}.`;
@@ -234,6 +401,9 @@ const loadPage = async () => {
     renderEmpty(
       "Create the file or fix the filename in <code>content/index.json</code>.",
     );
+    if (webmentions) {
+      webmentions.innerHTML = "";
+    }
   }
 };
 
@@ -246,7 +416,13 @@ const loadManifest = async () => {
     siteTitle.textContent = manifest.site?.title || "Neo CMS";
     siteTagline.textContent = manifest.site?.tagline || siteTagline.textContent;
     siteFooter.textContent = manifest.site?.footer || "";
-
+    indieweb.webmentionEndpoint =
+      readHeadLink("webmention") || indieweb.webmentionEndpoint;
+    const siteConfig = manifest.site || {};
+    const indiewebConfig = siteConfig.indieweb || {};
+    indieweb.siteUrl = siteConfig.url || indieweb.siteUrl;
+    indieweb.webmentionEndpoint =
+      indiewebConfig.webmentionEndpoint || indieweb.webmentionEndpoint;
     renderNav();
     await loadPage();
   } catch (error) {
@@ -257,6 +433,8 @@ const loadManifest = async () => {
     renderEmpty(
       "Create <code>content/index.json</code> and point it at markdown files. Use the sample in this repo as a template.",
     );
+    indieweb.webmentionEndpoint =
+      readHeadLink("webmention") || indieweb.webmentionEndpoint;
   }
 };
 

@@ -2,7 +2,11 @@
   "site": {
     "title": "Neo CMS",
     "tagline": "A dumb-simple markdown site. Drop files in /content and list them here.",
-    "footer": "Built for Neocities. Edit content/index.json to change the menu."
+    "footer": "Built for Neocities. Edit content/index.json to change the menu.",
+    "url": "https://crowdersoup.neocities.org/",
+    "indieweb": {
+      "webmentionEndpoint": "https://webmention.io/crowdersoup.neocities.org/webmention"
+    }
   },
   "sections": [
     {
